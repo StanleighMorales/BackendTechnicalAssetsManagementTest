@@ -90,6 +90,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
             Assert.Equal(userId, teacherResult!.Id);
             Assert.Equal("teacher123", teacherResult.Username);
             _mockUserRepository.Verify(x => x.GetByIdAsync(userId), Times.Once);
+            _mockMapper.Verify(x => x.Map<GetTeacherProfileDto>(teacher), Times.Once);
         }
 
         [Fact]
@@ -118,6 +119,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
             Assert.Equal(userId, staffResult!.Id);
             Assert.Equal("staff123", staffResult.Username);
             _mockUserRepository.Verify(x => x.GetByIdAsync(userId), Times.Once);
+            _mockMapper.Verify(x => x.Map<GetStaffProfileDto>(staff), Times.Once);
         }
 
         [Fact]
@@ -249,8 +251,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Setup(x => x.Map(updateDto, existingUser))
                 .Callback<UpdateUserProfileDto, User>((src, dest) =>
                 {
-                    dest.FirstName = src.FirstName;
-                    dest.LastName = src.LastName;
+                    dest.FirstName = src.FirstName!;
+                    dest.LastName = src.LastName!;
                     dest.PhoneNumber = src.PhoneNumber;
                 });
 
@@ -443,8 +445,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Setup(x => x.Map(updateDto, admin))
                 .Callback<UpdateStaffProfileDto, User>((src, dest) =>
                 {
-                    dest.FirstName = src.FirstName;
-                    dest.LastName = src.LastName;
+                    dest.FirstName = src.FirstName!;
+                    dest.LastName = src.LastName!;
                 });
 
             _mockUserRepository
@@ -479,8 +481,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Setup(x => x.Map(updateDto, staff))
                 .Callback<UpdateStaffProfileDto, Staff>((src, dest) =>
                 {
-                    dest.FirstName = src.FirstName;
-                    dest.LastName = src.LastName;
+                    dest.FirstName = src.FirstName!;
+                    dest.LastName = src.LastName!;
                 });
 
             _mockUserRepository
