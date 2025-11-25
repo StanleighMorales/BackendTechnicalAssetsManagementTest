@@ -193,5 +193,37 @@ namespace BackendTechnicalAssetsManagementTest.MockData
                 new UserDto { Id = Guid.NewGuid(), Username = "user3", Email = "user3@test.com" }
             };
         }
+
+        public static Student GetMockIncompleteStudent(Guid? id = null)
+        {
+            return new Student
+            {
+                Id = id ?? Guid.NewGuid(),
+                Username = "incomplete.student",
+                Email = "temp@temporary.com",
+                FirstName = "Incomplete",
+                LastName = "Student",
+                PhoneNumber = "0000000000",
+                PasswordHash = "hashedPassword",
+                Status = "Active",
+                UserRole = UserRole.Student,
+                StudentIdNumber = null,
+                Year = null,
+                Section = null,
+                Course = null
+            };
+        }
+
+        public static Student GetMockCompleteStudent(Guid? id = null)
+        {
+            var student = GetMockStudent(id);
+            student.Street = "123 Main St";
+            student.CityMunicipality = "Test City";
+            student.Province = "Test Province";
+            student.PostalCode = "12345";
+            student.FrontStudentIdPicture = new byte[] { 1, 2, 3 };
+            student.BackStudentIdPicture = new byte[] { 4, 5, 6 };
+            return student;
+        }
     }
 }

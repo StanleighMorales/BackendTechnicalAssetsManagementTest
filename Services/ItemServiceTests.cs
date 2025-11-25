@@ -591,7 +591,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
             // Assert
             Assert.True(result.Success);
             Assert.Empty(result.ErrorMessage);
-            Assert.Equal(ItemStatus.Unavailable, itemToDelete.Status);
+            Assert.Equal(ItemStatus.Archived, itemToDelete.Status);
             _mockArchiveItemsService.Verify(x => x.CreateItemArchiveAsync(It.IsAny<CreateArchiveItemsDto>()), Times.Once);
             _mockItemRepository.Verify(x => x.DeleteAsync(itemId), Times.Once);
             _mockItemRepository.Verify(x => x.SaveChangesAsync(), Times.Once);

@@ -6,6 +6,7 @@ using BackendTechnicalAssetsManagement.src.IService;
 using BackendTechnicalAssetsManagement.src.Models.DTOs.Users;
 using BackendTechnicalAssetsManagement.src.Services;
 using BackendTechnicalAssetsManagementTest.MockData;
+using Microsoft.AspNetCore.Http;
 using Moq;
 using static BackendTechnicalAssetsManagement.src.Classes.Enums;
 using static BackendTechnicalAssetsManagement.src.DTOs.User.UserProfileDtos;
@@ -17,6 +18,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
         private readonly Mock<IUserRepository> _mockUserRepository;
         private readonly Mock<IMapper> _mockMapper;
         private readonly Mock<IArchiveUserService> _mockArchiveUserService;
+        private readonly Mock<IPasswordHashingService> _mockPasswordHashingService;
         private readonly UserService _userService;
 
         public UserServiceTests()
@@ -24,12 +26,14 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockUserRepository = new Mock<IUserRepository>();
             _mockMapper = new Mock<IMapper>();
             _mockArchiveUserService = new Mock<IArchiveUserService>();
+            _mockPasswordHashingService = new Mock<IPasswordHashingService>();
 
             // Initialize the service with all mocks
             _userService = new UserService(
                 _mockUserRepository.Object,
                 _mockMapper.Object,
-                _mockArchiveUserService.Object
+                _mockArchiveUserService.Object,
+                _mockPasswordHashingService.Object
             );
         }
 
@@ -607,6 +611,379 @@ namespace BackendTechnicalAssetsManagementTest.Services
             Assert.False(result.Success);
             Assert.Equal(errorMessage, result.ErrorMessage);
             _mockArchiveUserService.Verify(x => x.ArchiveUserAsync(userId, currentUserId), Times.Once);
+        }
+
+        #endregion
+
+        #region CompleteStudentRegistrationAsync Tests
+
+        [Fact]
+        public async Task CompleteStudentRegistrationAsync_WithValidData_ShouldCompleteAndReturnTrue()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var student = UserMockData.GetMockStudent(userId);
+            student.Email = "temp@temporary.com";
+            student.PhoneNumber = "0000000000";
+            student.StudentIdNumber = null;
+
+            var completeDto = new CompleteStudentRegistrationDto
+            {
+                Email = "newemail@test.com",
+                PhoneNumber = "1234567890",
+                StudentIdNumber = "STU12345",
+                Course = "Computer Science",
+                Section = "A",
+                Year = "3rd Year",
+                Street = "123 Main St",
+                CityMunicipality = "Test City",
+                Province = "Test Province",
+                PostalCode = "12345",
+                FrontStudentIdPicture = CreateMockFormFile("front.jpg"),
+                BackStudentIdPicture = CreateMockFormFile("back.jpg")
+            };
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(student);
+
+            _mockUserRepository
+                .Setup(x => x.UpdateAsync(student))
+                .Returns(Task.CompletedTask);
+
+            _mockUserRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            // Act
+            var result = await _userService.CompleteStudentRegistrationAsync(userId, completeDto);
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal("newemail@test.com", student.Email);
+            Assert.Equal("1234567890", student.PhoneNumber);
+            Assert.Equal("STU12345", student.StudentIdNumber);
+            _mockUserRepository.Verify(x => x.UpdateAsync(student), Times.Once);
+            _mockUserRepository.Verify(x => x.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task CompleteStudentRegistrationAsync_WithNonExistentUser_ShouldReturnFalse()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var completeDto = new CompleteStudentRegistrationDto
+            {
+                Email = "test@test.com",
+                PhoneNumber = "1234567890",
+                StudentIdNumber = "STU001",
+                Course = "CS",
+                Section = "A",
+                Year = "1st",
+                Street = "Street",
+                CityMunicipality = "City",
+                Province = "Province",
+                PostalCode = "12345",
+                FrontStudentIdPicture = CreateMockFormFile("front.jpg"),
+                BackStudentIdPicture = CreateMockFormFile("back.jpg")
+            };
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync((User?)null);
+
+            // Act
+            var result = await _userService.CompleteStudentRegistrationAsync(userId, completeDto);
+
+            // Assert
+            Assert.False(result);
+            _mockUserRepository.Verify(x => x.UpdateAsync(It.IsAny<User>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task CompleteStudentRegistrationAsync_WithNonStudentUser_ShouldReturnFalse()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var teacher = UserMockData.GetMockTeacher(userId);
+            var completeDto = new CompleteStudentRegistrationDto
+            {
+                Email = "test@test.com",
+                PhoneNumber = "1234567890",
+                StudentIdNumber = "STU001",
+                Course = "CS",
+                Section = "A",
+                Year = "1st",
+                Street = "Street",
+                CityMunicipality = "City",
+                Province = "Province",
+                PostalCode = "12345",
+                FrontStudentIdPicture = CreateMockFormFile("front.jpg"),
+                BackStudentIdPicture = CreateMockFormFile("back.jpg")
+            };
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(teacher);
+
+            // Act
+            var result = await _userService.CompleteStudentRegistrationAsync(userId, completeDto);
+
+            // Assert
+            Assert.False(result);
+            _mockUserRepository.Verify(x => x.UpdateAsync(It.IsAny<User>()), Times.Never);
+        }
+
+        #endregion
+
+        #region ValidateStudentProfileComplete Tests
+
+        [Fact]
+        public async Task ValidateStudentProfileComplete_WithCompleteProfile_ShouldReturnTrue()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var student = UserMockData.GetMockStudent(userId);
+            student.Email = "valid@test.com";
+            student.PhoneNumber = "1234567890";
+            student.StudentIdNumber = "STU001";
+            student.Course = "Computer Science";
+            student.Section = "A";
+            student.Year = "3rd Year";
+            student.Street = "123 Main St";
+            student.CityMunicipality = "Test City";
+            student.Province = "Test Province";
+            student.PostalCode = "12345";
+            student.FrontStudentIdPicture = new byte[] { 1, 2, 3 };
+            student.BackStudentIdPicture = new byte[] { 4, 5, 6 };
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(student);
+
+            // Act
+            var result = await _userService.ValidateStudentProfileComplete(userId);
+
+            // Assert
+            Assert.True(result.IsComplete);
+            Assert.Empty(result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task ValidateStudentProfileComplete_WithIncompleteProfile_ShouldReturnFalseWithErrors()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var student = UserMockData.GetMockStudent(userId);
+            student.Email = "temp@temporary.com"; // Temporary email
+            student.PhoneNumber = "0000000000"; // Temporary phone
+            student.StudentIdNumber = null;
+            student.FrontStudentIdPicture = null;
+            student.BackStudentIdPicture = null;
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(student);
+
+            // Act
+            var result = await _userService.ValidateStudentProfileComplete(userId);
+
+            // Assert
+            Assert.False(result.IsComplete);
+            Assert.Contains("Email", result.ErrorMessage);
+            Assert.Contains("Phone Number", result.ErrorMessage);
+            Assert.Contains("Student ID Number", result.ErrorMessage);
+            Assert.Contains("Front Student ID Picture", result.ErrorMessage);
+            Assert.Contains("Back Student ID Picture", result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task ValidateStudentProfileComplete_WithNonExistentUser_ShouldReturnFalse()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync((User?)null);
+
+            // Act
+            var result = await _userService.ValidateStudentProfileComplete(userId);
+
+            // Assert
+            Assert.False(result.IsComplete);
+            Assert.Equal("User not found.", result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task ValidateStudentProfileComplete_WithNonStudentUser_ShouldReturnTrue()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var teacher = UserMockData.GetMockTeacher(userId);
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(teacher);
+
+            // Act
+            var result = await _userService.ValidateStudentProfileComplete(userId);
+
+            // Assert
+            Assert.True(result.IsComplete);
+            Assert.Empty(result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task ValidateStudentProfileComplete_WithMissingAddressFields_ShouldReturnFalse()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var student = UserMockData.GetMockStudent(userId);
+            student.Street = null;
+            student.CityMunicipality = null;
+            student.Province = null;
+            student.PostalCode = null;
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(student);
+
+            // Act
+            var result = await _userService.ValidateStudentProfileComplete(userId);
+
+            // Assert
+            Assert.False(result.IsComplete);
+            Assert.Contains("Street", result.ErrorMessage);
+            Assert.Contains("City/Municipality", result.ErrorMessage);
+            Assert.Contains("Province", result.ErrorMessage);
+            Assert.Contains("Postal Code", result.ErrorMessage);
+        }
+
+        #endregion
+
+        #region GetStudentByIdNumberAsync Tests
+
+        [Fact]
+        public async Task GetStudentByIdNumberAsync_WithValidIdNumber_ShouldReturnStudent()
+        {
+            // Arrange
+            var studentIdNumber = "STU001";
+            var student = UserMockData.GetMockStudent();
+            student.StudentIdNumber = studentIdNumber;
+            student.FrontStudentIdPicture = new byte[] { 1, 2, 3 };
+            student.BackStudentIdPicture = new byte[] { 4, 5, 6 };
+
+            _mockUserRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<User> { student });
+
+            // Act
+            var result = await _userService.GetStudentByIdNumberAsync(studentIdNumber);
+
+            // Assert
+            Assert.NotNull(result);
+            // Verify the result is an anonymous object with expected properties
+            var resultType = result.GetType();
+            var idProperty = resultType.GetProperty("Id");
+            var studentIdProperty = resultType.GetProperty("StudentIdNumber");
+            var frontIdProperty = resultType.GetProperty("FrontIdPicture");
+            var backIdProperty = resultType.GetProperty("BackIdPicture");
+            
+            Assert.NotNull(idProperty);
+            Assert.NotNull(studentIdProperty);
+            Assert.Equal(student.Id, idProperty.GetValue(result));
+            Assert.Equal(studentIdNumber, studentIdProperty.GetValue(result));
+            Assert.NotNull(frontIdProperty?.GetValue(result));
+            Assert.NotNull(backIdProperty?.GetValue(result));
+        }
+
+        [Fact]
+        public async Task GetStudentByIdNumberAsync_WithNonExistentIdNumber_ShouldReturnNull()
+        {
+            // Arrange
+            var studentIdNumber = "INVALID";
+
+            _mockUserRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<User>());
+
+            // Act
+            var result = await _userService.GetStudentByIdNumberAsync(studentIdNumber);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task GetStudentByIdNumberAsync_WithNullIdNumber_ShouldReturnNull()
+        {
+            // Arrange
+            string? studentIdNumber = null;
+
+            // Act
+            var result = await _userService.GetStudentByIdNumberAsync(studentIdNumber!);
+
+            // Assert
+            Assert.Null(result);
+            _mockUserRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        }
+
+        [Fact]
+        public async Task GetStudentByIdNumberAsync_WithEmptyIdNumber_ShouldReturnNull()
+        {
+            // Arrange
+            var studentIdNumber = "";
+
+            // Act
+            var result = await _userService.GetStudentByIdNumberAsync(studentIdNumber);
+
+            // Assert
+            Assert.Null(result);
+            _mockUserRepository.Verify(x => x.GetAllAsync(), Times.Never);
+        }
+
+        [Fact]
+        public async Task GetStudentByIdNumberAsync_WithNoIdPictures_ShouldReturnStudentWithNullPictures()
+        {
+            // Arrange
+            var studentIdNumber = "STU001";
+            var student = UserMockData.GetMockStudent();
+            student.StudentIdNumber = studentIdNumber;
+            student.FrontStudentIdPicture = null;
+            student.BackStudentIdPicture = null;
+
+            _mockUserRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<User> { student });
+
+            // Act
+            var result = await _userService.GetStudentByIdNumberAsync(studentIdNumber);
+
+            // Assert
+            Assert.NotNull(result);
+            var resultType = result.GetType();
+            var frontIdProperty = resultType.GetProperty("FrontIdPicture");
+            var backIdProperty = resultType.GetProperty("BackIdPicture");
+            
+            Assert.Null(frontIdProperty?.GetValue(result));
+            Assert.Null(backIdProperty?.GetValue(result));
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        private static IFormFile CreateMockFormFile(string fileName)
+        {
+            var content = "fake image content";
+            var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+            var file = new FormFile(stream, 0, stream.Length, "file", fileName)
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/jpeg"
+            };
+            return file;
         }
 
         #endregion
