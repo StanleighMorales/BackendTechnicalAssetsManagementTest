@@ -21,6 +21,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
         private readonly Mock<IArchiveLentItemsService> _mockArchiveLentItemsService;
         private readonly Mock<IUserService> _mockUserService;
         private readonly Mock<IMapper> _mockMapper;
+        private readonly Mock<IBarcodeGeneratorService> _mockBarcodeGenerator;
         private readonly LentItemsService _lentItemsService;
 
         // PERFORMANCE OPTIMIZATION: Share a single DbContext across all tests
@@ -49,11 +50,17 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockArchiveLentItemsService = new Mock<IArchiveLentItemsService>();
             _mockUserService = new Mock<IUserService>();
             _mockMapper = new Mock<IMapper>();
+            _mockBarcodeGenerator = new Mock<IBarcodeGeneratorService>();
 
             // Use the shared DbContext for all tests
             _mockLentItemsRepository
                 .Setup(x => x.GetDbContext())
                 .Returns(_sharedDbContext.Value);
+
+            // Setup default barcode generation mock
+            _mockBarcodeGenerator
+                .Setup(x => x.GenerateLentItemBarcodeAsync(It.IsAny<DateTime?>()))
+                .ReturnsAsync("LENT-20251125-001");
 
             // Initialize the service with all mocks
             _lentItemsService = new LentItemsService(
@@ -62,7 +69,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 _mockUserRepository.Object,
                 _mockItemRepository.Object,
                 _mockArchiveLentItemsService.Object,
-                _mockUserService.Object
+                _mockUserService.Object,
+                _mockBarcodeGenerator.Object
             );
         }
 
@@ -750,6 +758,10 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Setup(x => x.GetByIdAsync(itemId))
                 .ReturnsAsync(item);
 
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(It.IsAny<Item>()))
+                .Returns(Task.CompletedTask);
+
             _mockLentItemsRepository
                 .Setup(x => x.GetAllAsync())
                 .ReturnsAsync(new List<LentItems>());
@@ -1129,6 +1141,242 @@ namespace BackendTechnicalAssetsManagementTest.Services
             // Assert
             Assert.Equal(0, result);
             _mockLentItemsRepository.Verify(x => x.UpdateAsync(It.IsAny<LentItems>()), Times.Never);
+        }
+
+        #endregion
+
+        #region IsItemAvailableForReservation Tests (via AddAsync)
+
+        [Fact]
+        public async Task AddAsync_WithNoReservedForTime_ShouldSkipTimeSlotValidation()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var createDto = LentItemsMockData.GetValidCreateLentItemDto(itemId, userId);
+            createDto.ReservedFor = null; // No reservation time specified
+
+            var item = new Item
+            {
+                Id = itemId,
+                ItemName = "Test Laptop",
+                Status = ItemStatus.Available,
+                Condition = ItemCondition.Good
+            };
+
+            var user = new User
+            {
+                Id = userId,
+                FirstName = "John",
+                LastName = "Doe",
+                Email = "[email]",
+                UserRole = UserRole.Student
+            };
+
+            var lentItem = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                UserId = userId,
+                Status = "Pending",
+                Barcode = "LENT-001"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(It.IsAny<Item>()))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<LentItems>());
+
+            _mockUserService
+                .Setup(x => x.ValidateStudentProfileComplete(userId))
+                .ReturnsAsync((true, string.Empty));
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(user);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItems>(createDto))
+                .Returns(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.AddAsync(It.IsAny<LentItems>()))
+                .ReturnsAsync(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItem.Id))
+                .ReturnsAsync(lentItem);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItemsDto>(lentItem))
+                .Returns(new LentItemsDto { Id = lentItem.Id });
+
+            // Act
+            var result = await _lentItemsService.AddAsync(createDto);
+
+            // Assert
+            Assert.NotNull(result);
+            _mockLentItemsRepository.Verify(x => x.AddAsync(It.IsAny<LentItems>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithConflictingReservation_ShouldThrowInvalidOperationException()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var reservationTime = DateTime.Now.AddHours(5);
+            var createDto = LentItemsMockData.GetValidCreateLentItemDto(itemId, userId);
+            createDto.ReservedFor = reservationTime;
+
+            var item = new Item
+            {
+                Id = itemId,
+                ItemName = "Test Laptop",
+                Status = ItemStatus.Available,
+                Condition = ItemCondition.Good
+            };
+
+            // Existing reservation within the 2-hour buffer window with "Reserved" status
+            // Note: Using "Reserved" instead of "Approved" because "Approved" would trigger
+            // the "active lent item" check first (line 66-72 in LentItemsService.cs)
+            var conflictingReservation = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                ReservedFor = reservationTime.AddMinutes(30), // 30 minutes after requested time
+                Status = "Reserved",
+                UserId = Guid.NewGuid()
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(item);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<LentItems> { conflictingReservation });
+
+            _mockUserService
+                .Setup(x => x.ValidateStudentProfileComplete(userId))
+                .ReturnsAsync((true, string.Empty));
+
+            _mockMapper
+                .Setup(x => x.Map<LentItems>(createDto))
+                .Returns(new LentItems());
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _lentItemsService.AddAsync(createDto));
+            Assert.Contains("already reserved", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithNoConflictingReservations_ShouldSucceed()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var reservationTime = DateTime.Now.AddHours(10);
+            var createDto = LentItemsMockData.GetValidCreateLentItemDto(itemId, userId);
+            createDto.ReservedFor = reservationTime;
+            createDto.Status = "Pending"; // Use Pending status for reservation test
+
+            var item = new Item
+            {
+                Id = itemId,
+                ItemName = "Test Laptop",
+                Status = ItemStatus.Available,
+                Condition = ItemCondition.Good
+            };
+
+            var user = new User
+            {
+                Id = userId,
+                FirstName = "John",
+                LastName = "Doe",
+                Email = "[email]",
+                UserRole = UserRole.Student
+            };
+
+            // Existing reservation outside the 2-hour buffer window (5 hours away)
+            // Using "Reserved" status to avoid triggering the "active lent item" check
+            var nonConflictingReservation = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                ReservedFor = reservationTime.AddHours(5), // 5 hours after requested time
+                Status = "Reserved",
+                UserId = Guid.NewGuid()
+            };
+
+            var lentItem = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                UserId = userId,
+                ReservedFor = reservationTime,
+                Status = "Pending",
+                Barcode = "LENT-002"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(It.IsAny<Item>()))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<LentItems> { nonConflictingReservation });
+
+            _mockUserService
+                .Setup(x => x.ValidateStudentProfileComplete(userId))
+                .ReturnsAsync((true, string.Empty));
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(user);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItems>(createDto))
+                .Returns(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.AddAsync(It.IsAny<LentItems>()))
+                .ReturnsAsync(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItem.Id))
+                .ReturnsAsync(lentItem);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItemsDto>(lentItem))
+                .Returns(new LentItemsDto { Id = lentItem.Id });
+
+            // Act
+            var result = await _lentItemsService.AddAsync(createDto);
+
+            // Assert
+            Assert.NotNull(result);
+            _mockLentItemsRepository.Verify(x => x.AddAsync(It.IsAny<LentItems>()), Times.Once);
         }
 
         #endregion
