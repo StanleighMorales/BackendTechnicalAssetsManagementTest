@@ -821,7 +821,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Setup(x => x.SaveChangesAsync())
                 .ReturnsAsync(true);
 
-            var beforeUpdate = DateTime.Now;
+            var beforeUpdate = DateTime.UtcNow;
 
             // Act
             var result = await _itemService.UpdateItemAsync(itemId, updateDto);

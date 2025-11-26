@@ -747,10 +747,6 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 IsRevoked = false
             };
 
-            _context.RefreshTokens.Add(activeToken);
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString())

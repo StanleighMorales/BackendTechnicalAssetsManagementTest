@@ -22,6 +22,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
         private readonly Mock<IUserService> _mockUserService;
         private readonly Mock<IMapper> _mockMapper;
         private readonly Mock<IBarcodeGeneratorService> _mockBarcodeGenerator;
+        private readonly Mock<INotificationService> _mockNotificationService;
         private readonly LentItemsService _lentItemsService;
 
         // PERFORMANCE OPTIMIZATION: Share a single DbContext across all tests
@@ -51,6 +52,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockUserService = new Mock<IUserService>();
             _mockMapper = new Mock<IMapper>();
             _mockBarcodeGenerator = new Mock<IBarcodeGeneratorService>();
+            _mockNotificationService = new Mock<INotificationService>();
 
             // Use the shared DbContext for all tests
             _mockLentItemsRepository
@@ -71,6 +73,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 _mockArchiveLentItemsService.Object,
                 _mockUserService.Object,
                 _mockBarcodeGenerator.Object
+            ,
+                _mockNotificationService.Object
             );
         }
 
