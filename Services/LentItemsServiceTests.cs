@@ -221,6 +221,302 @@ namespace BackendTechnicalAssetsManagementTest.Services
 
         #endregion
 
+        #region AddAsync - Notification Tests
+
+        [Fact]
+        public async Task AddAsync_WithPendingStatus_ShouldSendNotification()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var createDto = LentItemsMockData.GetValidCreateLentItemDto(itemId, userId);
+            createDto.Status = "Pending";
+
+            var item = new Item
+            {
+                Id = itemId,
+                ItemName = "Test Laptop",
+                Status = ItemStatus.Available,
+                Condition = ItemCondition.Good
+            };
+
+            var user = new User
+            {
+                Id = userId,
+                FirstName = "John",
+                LastName = "Doe",
+                Email = "[email]",
+                UserRole = UserRole.Student
+            };
+
+            var lentItem = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                UserId = userId,
+                Status = "Pending",
+                ItemName = "Test Laptop",
+                BorrowerFullName = "John Doe",
+                Barcode = "LENT-001"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(It.IsAny<Item>()))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<LentItems>());
+
+            _mockUserService
+                .Setup(x => x.ValidateStudentProfileComplete(userId))
+                .ReturnsAsync((true, string.Empty));
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(user);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItems>(createDto))
+                .Returns(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.AddAsync(It.IsAny<LentItems>()))
+                .ReturnsAsync(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItem.Id))
+                .ReturnsAsync(lentItem);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItemsDto>(lentItem))
+                .Returns(new LentItemsDto { Id = lentItem.Id });
+
+            _mockNotificationService
+                .Setup(x => x.SendNewPendingRequestNotificationAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<DateTime?>()))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            var result = await _lentItemsService.AddAsync(createDto);
+
+            // Assert
+            Assert.NotNull(result);
+            _mockNotificationService.Verify(
+                x => x.SendNewPendingRequestNotificationAsync(
+                    lentItem.Id,
+                    "Test Laptop",
+                    "John Doe",
+                    It.IsAny<DateTime?>()),
+                Times.Once,
+                "Notification should be sent for Pending status");
+        }
+
+        [Fact]
+        public async Task AddAsync_WithApprovedStatus_ShouldSendNotification()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var createDto = LentItemsMockData.GetValidCreateLentItemDto(itemId, userId);
+            createDto.Status = "Approved";
+
+            var item = new Item
+            {
+                Id = itemId,
+                ItemName = "Test Projector",
+                Status = ItemStatus.Available,
+                Condition = ItemCondition.Good
+            };
+
+            var user = new User
+            {
+                Id = userId,
+                FirstName = "Jane",
+                LastName = "Smith",
+                Email = "[email]",
+                UserRole = UserRole.Student
+            };
+
+            var lentItem = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                UserId = userId,
+                Status = "Approved",
+                ItemName = "Test Projector",
+                BorrowerFullName = "Jane Smith",
+                Barcode = "LENT-002"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(It.IsAny<Item>()))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<LentItems>());
+
+            _mockUserService
+                .Setup(x => x.ValidateStudentProfileComplete(userId))
+                .ReturnsAsync((true, string.Empty));
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(user);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItems>(createDto))
+                .Returns(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.AddAsync(It.IsAny<LentItems>()))
+                .ReturnsAsync(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItem.Id))
+                .ReturnsAsync(lentItem);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItemsDto>(lentItem))
+                .Returns(new LentItemsDto { Id = lentItem.Id });
+
+            _mockNotificationService
+                .Setup(x => x.SendNewPendingRequestNotificationAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<DateTime?>()))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            var result = await _lentItemsService.AddAsync(createDto);
+
+            // Assert
+            Assert.NotNull(result);
+            _mockNotificationService.Verify(
+                x => x.SendNewPendingRequestNotificationAsync(
+                    lentItem.Id,
+                    "Test Projector",
+                    "Jane Smith",
+                    It.IsAny<DateTime?>()),
+                Times.Once,
+                "Notification should be sent for Approved status");
+        }
+
+        [Fact]
+        public async Task AddAsync_WithBorrowedStatus_ShouldNotSendNotification()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var createDto = LentItemsMockData.GetValidCreateLentItemDto(itemId, userId);
+            createDto.Status = "Borrowed";
+
+            var item = new Item
+            {
+                Id = itemId,
+                ItemName = "Test Camera",
+                Status = ItemStatus.Available,
+                Condition = ItemCondition.Good
+            };
+
+            var user = new User
+            {
+                Id = userId,
+                FirstName = "Bob",
+                LastName = "Johnson",
+                Email = "[email]",
+                UserRole = UserRole.Student
+            };
+
+            var lentItem = new LentItems
+            {
+                Id = Guid.NewGuid(),
+                ItemId = itemId,
+                UserId = userId,
+                Status = "Borrowed",
+                ItemName = "Test Camera",
+                BorrowerFullName = "Bob Johnson",
+                Barcode = "LENT-003"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(It.IsAny<Item>()))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(new List<LentItems>());
+
+            _mockUserService
+                .Setup(x => x.ValidateStudentProfileComplete(userId))
+                .ReturnsAsync((true, string.Empty));
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(user);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItems>(createDto))
+                .Returns(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.AddAsync(It.IsAny<LentItems>()))
+                .ReturnsAsync(lentItem);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItem.Id))
+                .ReturnsAsync(lentItem);
+
+            _mockMapper
+                .Setup(x => x.Map<LentItemsDto>(lentItem))
+                .Returns(new LentItemsDto { Id = lentItem.Id });
+
+            // Act
+            var result = await _lentItemsService.AddAsync(createDto);
+
+            // Assert
+            Assert.NotNull(result);
+            _mockNotificationService.Verify(
+                x => x.SendNewPendingRequestNotificationAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<DateTime?>()),
+                Times.Never,
+                "Notification should NOT be sent for Borrowed status");
+        }
+
+        #endregion
+
         #region GetAllAsync Tests
 
         [Fact]
@@ -436,6 +732,131 @@ namespace BackendTechnicalAssetsManagementTest.Services
 
             // Assert
             Assert.False(result);
+        }
+
+        [Fact]
+        public async Task UpdateStatusAsync_FromPendingToApproved_ShouldSendApprovalNotification()
+        {
+            // Arrange
+            var lentItemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var lentItem = LentItemsMockData.GetMockLentItem(lentItemId, "Pending");
+            lentItem.UserId = userId;
+            lentItem.ItemName = "Test Laptop";
+            lentItem.BorrowerFullName = "John Doe";
+
+            var item = new Item
+            {
+                Id = lentItem.ItemId,
+                ItemName = "Test Laptop",
+                Status = ItemStatus.Reserved,
+                Condition = ItemCondition.Good
+            };
+
+            var scanDto = LentItemsMockData.GetValidScanLentItemDto(LentItemsStatus.Approved);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItemId))
+                .ReturnsAsync(lentItem);
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(lentItem.ItemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(item))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.UpdateAsync(lentItem))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockNotificationService
+                .Setup(x => x.SendApprovalNotificationAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<Guid>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>()))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            var result = await _lentItemsService.UpdateStatusAsync(lentItemId, scanDto);
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal("Approved", lentItem.Status);
+            _mockNotificationService.Verify(
+                x => x.SendApprovalNotificationAsync(
+                    lentItemId,
+                    userId,
+                    "Test Laptop",
+                    "John Doe"),
+                Times.Once,
+                "Approval notification should be sent when status changes from Pending to Approved");
+        }
+
+        [Fact]
+        public async Task UpdateStatusAsync_FromApprovedToBorrowed_ShouldNotSendStatusChangeNotification()
+        {
+            // Arrange
+            var lentItemId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var lentItem = LentItemsMockData.GetMockLentItem(lentItemId, "Approved");
+            lentItem.UserId = userId;
+            lentItem.ItemName = "Test Projector";
+            lentItem.BorrowerFullName = "Jane Smith";
+
+            var item = new Item
+            {
+                Id = lentItem.ItemId,
+                ItemName = "Test Projector",
+                Status = ItemStatus.Reserved,
+                Condition = ItemCondition.Good
+            };
+
+            var scanDto = LentItemsMockData.GetValidScanLentItemDto(LentItemsStatus.Borrowed);
+
+            _mockLentItemsRepository
+                .Setup(x => x.GetByIdAsync(lentItemId))
+                .ReturnsAsync(lentItem);
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(lentItem.ItemId))
+                .ReturnsAsync(item);
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(item))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.UpdateAsync(lentItem))
+                .Returns(Task.CompletedTask);
+
+            _mockLentItemsRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            // Act
+            var result = await _lentItemsService.UpdateStatusAsync(lentItemId, scanDto);
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal("Borrowed", lentItem.Status);
+            // UpdateStatusAsync (with ScanLentItemDto) does NOT send status change notifications
+            // Only UpdateAsync (with UpdateLentItemDto) sends status change notifications
+            _mockNotificationService.Verify(
+                x => x.SendStatusChangeNotificationAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<Guid>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>()),
+                Times.Never,
+                "UpdateStatusAsync should NOT send status change notifications");
         }
 
         #endregion
