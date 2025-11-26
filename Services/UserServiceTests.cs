@@ -19,6 +19,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
         private readonly Mock<IMapper> _mockMapper;
         private readonly Mock<IArchiveUserService> _mockArchiveUserService;
         private readonly Mock<IPasswordHashingService> _mockPasswordHashingService;
+        private readonly Mock<IExcelReaderService> _mockExcelReaderService;
         private readonly UserService _userService;
 
         public UserServiceTests()
@@ -27,13 +28,15 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockMapper = new Mock<IMapper>();
             _mockArchiveUserService = new Mock<IArchiveUserService>();
             _mockPasswordHashingService = new Mock<IPasswordHashingService>();
+            _mockExcelReaderService = new Mock<IExcelReaderService>();
 
             // Initialize the service with all mocks
             _userService = new UserService(
                 _mockUserRepository.Object,
                 _mockMapper.Object,
                 _mockArchiveUserService.Object,
-                _mockPasswordHashingService.Object
+                _mockPasswordHashingService.Object,
+                _mockExcelReaderService.Object
             );
         }
 

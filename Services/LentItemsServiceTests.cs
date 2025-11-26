@@ -30,8 +30,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
         private static readonly Lazy<BackendTechnicalAssetsManagement.src.Data.AppDbContext> _sharedDbContext = new Lazy<BackendTechnicalAssetsManagement.src.Data.AppDbContext>(() =>
         {
             // CRITICAL: Set performance flags BEFORE creating DbContext
-            BackendTechnicalAssetsManagement.src.Data.ModelBuilderExtensions.SkipSeedData = true;
-            BackendTechnicalAssetsManagement.src.Utils.BarcodeImageUtil.SkipImageGeneration = true;
+            BackendTechnicalAssetsManagement.src.Extensions.ModelBuilderExtensions.SkipSeedData = true;
+            BackendTechnicalAssetsManagement.src.Services.BarcodeGeneratorService.SkipImageGeneration = true;
 
             var options = new DbContextOptionsBuilder<BackendTechnicalAssetsManagement.src.Data.AppDbContext>()
                 .UseInMemoryDatabase(databaseName: "SharedTestDb")

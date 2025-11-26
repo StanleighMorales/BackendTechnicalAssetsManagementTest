@@ -19,6 +19,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
         private readonly Mock<IMapper> _mockMapper;
         private readonly Mock<IWebHostEnvironment> _mockHostEnvironment;
         private readonly Mock<IArchiveItemsService> _mockArchiveItemsService;
+        private readonly Mock<IBarcodeGeneratorService> _mockBarcodeGenerator;
         private readonly ItemService _itemService;
 
         public ItemServiceTests()
@@ -27,13 +28,15 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockMapper = new Mock<IMapper>();
             _mockHostEnvironment = new Mock<IWebHostEnvironment>();
             _mockArchiveItemsService = new Mock<IArchiveItemsService>();
+            _mockBarcodeGenerator = new Mock<IBarcodeGeneratorService>();
 
             // Initialize the service with all mocks
             _itemService = new ItemService(
                 _mockItemRepository.Object,
                 _mockMapper.Object,
                 _mockHostEnvironment.Object,
-                _mockArchiveItemsService.Object
+                _mockArchiveItemsService.Object,
+                _mockBarcodeGenerator.Object
             );
         }
 
@@ -482,6 +485,10 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockItemRepository
                 .Setup(x => x.GetBySerialNumberAsync("SN-67890"))
                 .ReturnsAsync((Item?)null);
+
+            _mockBarcodeGenerator
+                .Setup(x => x.GenerateItemBarcode("SN-67890"))
+                .Returns("ITEM-SN-67890");
 
             _mockMapper
                 .Setup(x => x.Map(updateDto, existingItem))
