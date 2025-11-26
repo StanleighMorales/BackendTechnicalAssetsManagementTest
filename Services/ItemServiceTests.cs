@@ -204,6 +204,127 @@ namespace BackendTechnicalAssetsManagementTest.Services
             Assert.Contains("already exists", exception.Message);
         }
 
+        [Fact]
+        public async Task CreateItemAsync_ShouldGenerateBarcodeText()
+        {
+            // Arrange
+            var createItemDto = new CreateItemsDto
+            {
+                SerialNumber = "12345",
+                ItemName = "Test Item",
+                ItemType = "Laptop",
+                ItemMake = "Dell"
+            };
+
+            var newItem = new Item
+            {
+                Id = Guid.NewGuid(),
+                SerialNumber = "SN-12345",
+                ItemName = "Test Item"
+            };
+
+            var itemDto = new ItemDto
+            {
+                Id = newItem.Id,
+                SerialNumber = "SN-12345",
+                Barcode = "ITEM-SN-12345"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetBySerialNumberAsync("SN-12345"))
+                .ReturnsAsync((Item?)null);
+
+            _mockBarcodeGenerator
+                .Setup(x => x.GenerateItemBarcode("SN-12345"))
+                .Returns("ITEM-SN-12345");
+
+            _mockBarcodeGenerator
+                .Setup(x => x.GenerateBarcodeImage("ITEM-SN-12345"))
+                .Returns(new byte[] { 1, 2, 3 });
+
+            _mockMapper
+                .Setup(x => x.Map<Item>(createItemDto))
+                .Returns(newItem);
+
+            _mockItemRepository
+                .Setup(x => x.AddAsync(It.IsAny<Item>()))
+                .ReturnsAsync(newItem);
+
+            _mockItemRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockMapper
+                .Setup(x => x.Map<ItemDto>(It.IsAny<Item>()))
+                .Returns(itemDto);
+
+            // Act
+            var result = await _itemService.CreateItemAsync(createItemDto);
+
+            // Assert
+            _mockBarcodeGenerator.Verify(x => x.GenerateItemBarcode("SN-12345"), Times.Once);
+            _mockBarcodeGenerator.Verify(x => x.GenerateBarcodeImage("ITEM-SN-12345"), Times.Once);
+        }
+
+        [Fact]
+        public async Task CreateItemAsync_ShouldSetStatusToAvailable()
+        {
+            // Arrange
+            var createItemDto = new CreateItemsDto
+            {
+                SerialNumber = "12345",
+                ItemName = "Test Item",
+                ItemType = "Laptop",
+                ItemMake = "Dell"
+            };
+
+            Item? capturedItem = null;
+            var newItem = new Item
+            {
+                Id = Guid.NewGuid(),
+                SerialNumber = "SN-12345",
+                ItemName = "Test Item"
+            };
+
+            var itemDto = new ItemDto { Id = newItem.Id };
+
+            _mockItemRepository
+                .Setup(x => x.GetBySerialNumberAsync("SN-12345"))
+                .ReturnsAsync((Item?)null);
+
+            _mockBarcodeGenerator
+                .Setup(x => x.GenerateItemBarcode(It.IsAny<string>()))
+                .Returns("ITEM-SN-12345");
+
+            _mockBarcodeGenerator
+                .Setup(x => x.GenerateBarcodeImage(It.IsAny<string>()))
+                .Returns(new byte[] { 1, 2, 3 });
+
+            _mockMapper
+                .Setup(x => x.Map<Item>(createItemDto))
+                .Returns(newItem);
+
+            _mockItemRepository
+                .Setup(x => x.AddAsync(It.IsAny<Item>()))
+                .Callback<Item>(item => capturedItem = item)
+                .ReturnsAsync(newItem);
+
+            _mockItemRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            _mockMapper
+                .Setup(x => x.Map<ItemDto>(It.IsAny<Item>()))
+                .Returns(itemDto);
+
+            // Act
+            await _itemService.CreateItemAsync(createItemDto);
+
+            // Assert
+            Assert.NotNull(capturedItem);
+            Assert.Equal(ItemStatus.Available, capturedItem.Status);
+        }
+
         #endregion
 
         #region GetAllItemsAsync Tests
@@ -238,6 +359,30 @@ namespace BackendTechnicalAssetsManagementTest.Services
             // Assert
             Assert.NotNull(result);
             Assert.Equal(2, result.Count());
+            _mockItemRepository.Verify(x => x.GetAllAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task GetAllItemsAsync_WithEmptyList_ShouldReturnEmptyCollection()
+        {
+            // Arrange
+            var items = new List<Item>();
+            var itemDtos = new List<ItemDto>();
+
+            _mockItemRepository
+                .Setup(x => x.GetAllAsync())
+                .ReturnsAsync(items);
+
+            _mockMapper
+                .Setup(x => x.Map<IEnumerable<ItemDto>>(items))
+                .Returns(itemDtos);
+
+            // Act
+            var result = await _itemService.GetAllItemsAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Empty(result);
             _mockItemRepository.Verify(x => x.GetAllAsync(), Times.Once);
         }
 
@@ -346,6 +491,28 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockItemRepository.Verify(x => x.GetByBarcodeAsync(barcode), Times.Once);
         }
 
+        [Fact]
+        public async Task GetItemByBarcodeAsync_WithInvalidBarcode_ShouldReturnNull()
+        {
+            // Arrange
+            var barcode = "INVALID-BARCODE";
+
+            _mockItemRepository
+                .Setup(x => x.GetByBarcodeAsync(barcode))
+                .ReturnsAsync((Item?)null);
+
+            _mockMapper
+                .Setup(x => x.Map<ItemDto>(It.IsAny<Item>()))
+                .Returns((ItemDto?)null);
+
+            // Act
+            var result = await _itemService.GetItemByBarcodeAsync(barcode);
+
+            // Assert
+            Assert.Null(result);
+            _mockItemRepository.Verify(x => x.GetByBarcodeAsync(barcode), Times.Once);
+        }
+
         #endregion
 
         #region GetItemBySerialNumberAsync Tests
@@ -383,6 +550,28 @@ namespace BackendTechnicalAssetsManagementTest.Services
             // Assert
             Assert.NotNull(result);
             Assert.Equal(serialNumber, result.SerialNumber);
+            _mockItemRepository.Verify(x => x.GetBySerialNumberAsync(serialNumber), Times.Once);
+        }
+
+        [Fact]
+        public async Task GetItemBySerialNumberAsync_WithInvalidSerialNumber_ShouldReturnNull()
+        {
+            // Arrange
+            var serialNumber = "SN-INVALID";
+
+            _mockItemRepository
+                .Setup(x => x.GetBySerialNumberAsync(serialNumber))
+                .ReturnsAsync((Item?)null);
+
+            _mockMapper
+                .Setup(x => x.Map<ItemDto>(It.IsAny<Item>()))
+                .Returns((ItemDto?)null);
+
+            // Act
+            var result = await _itemService.GetItemBySerialNumberAsync(serialNumber);
+
+            // Assert
+            Assert.Null(result);
             _mockItemRepository.Verify(x => x.GetBySerialNumberAsync(serialNumber), Times.Once);
         }
 
@@ -549,6 +738,99 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 () => _itemService.UpdateItemAsync(itemId, updateDto));
         }
 
+        [Fact]
+        public async Task UpdateItemAsync_WithoutSerialNumberChange_ShouldNotRegenerateBarcode()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var existingItem = new Item
+            {
+                Id = itemId,
+                SerialNumber = "SN-12345",
+                Barcode = "ITEM-SN-12345",
+                ItemName = "Test Item"
+            };
+
+            var updateDto = new UpdateItemsDto
+            {
+                ItemName = "Updated Name"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(existingItem);
+
+            _mockMapper
+                .Setup(x => x.Map(updateDto, existingItem))
+                .Callback<UpdateItemsDto, Item>((src, dest) =>
+                {
+                    dest.ItemName = src.ItemName!;
+                });
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(existingItem))
+                .Returns(Task.CompletedTask);
+
+            _mockItemRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            // Act
+            var result = await _itemService.UpdateItemAsync(itemId, updateDto);
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal("ITEM-SN-12345", existingItem.Barcode);
+            _mockBarcodeGenerator.Verify(x => x.GenerateItemBarcode(It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task UpdateItemAsync_ShouldUpdateTimestamp()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var existingItem = new Item
+            {
+                Id = itemId,
+                SerialNumber = "SN-12345",
+                ItemName = "Test Item",
+                UpdatedAt = DateTime.Now.AddDays(-1)
+            };
+
+            var updateDto = new UpdateItemsDto
+            {
+                ItemName = "Updated Name"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(existingItem);
+
+            _mockMapper
+                .Setup(x => x.Map(updateDto, existingItem))
+                .Callback<UpdateItemsDto, Item>((src, dest) =>
+                {
+                    dest.ItemName = src.ItemName!;
+                });
+
+            _mockItemRepository
+                .Setup(x => x.UpdateAsync(existingItem))
+                .Returns(Task.CompletedTask);
+
+            _mockItemRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(true);
+
+            var beforeUpdate = DateTime.Now;
+
+            // Act
+            var result = await _itemService.UpdateItemAsync(itemId, updateDto);
+
+            // Assert
+            Assert.True(result);
+            Assert.True(existingItem.UpdatedAt >= beforeUpdate);
+        }
+
         #endregion
 
         #region DeleteItemAsync Tests
@@ -656,6 +938,76 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockItemRepository.Verify(x => x.DeleteAsync(It.IsAny<Guid>()), Times.Never);
         }
 
+        [Fact]
+        public async Task DeleteItemAsync_WhenSaveChangesFails_ShouldReturnFailure()
+        {
+            // Arrange
+            var itemId = Guid.NewGuid();
+            var itemToDelete = new Item
+            {
+                Id = itemId,
+                SerialNumber = "SN-12345",
+                ItemName = "Test Item",
+                Status = ItemStatus.Available
+            };
+
+            var archiveDto = new CreateArchiveItemsDto
+            {
+                SerialNumber = "SN-12345",
+                ItemName = "Test Item"
+            };
+
+            _mockItemRepository
+                .Setup(x => x.GetByIdAsync(itemId))
+                .ReturnsAsync(itemToDelete);
+
+            _mockMapper
+                .Setup(x => x.Map<CreateArchiveItemsDto>(itemToDelete))
+                .Returns(archiveDto);
+
+            _mockArchiveItemsService
+                .Setup(x => x.CreateItemArchiveAsync(archiveDto))
+                .ReturnsAsync(new ArchiveItemsDto { Id = itemId });
+
+            _mockItemRepository
+                .Setup(x => x.DeleteAsync(itemId))
+                .Returns(Task.CompletedTask);
+
+            _mockItemRepository
+                .Setup(x => x.SaveChangesAsync())
+                .ReturnsAsync(false);
+
+            // Act
+            var result = await _itemService.DeleteItemAsync(itemId);
+
+            // Assert
+            Assert.False(result.Success);
+            Assert.Contains("Failed to save changes", result.ErrorMessage);
+        }
+
         #endregion
+
+        #region ImportItemsFromExcelAsync Tests
+
+        // Note: Since ItemService uses ExcelDataReader directly (not through IExcelReaderService),
+        // these tests require actual Excel file format. The service should be refactored to use
+        // IExcelReaderService for better testability, similar to how UserService does it.
+        // 
+        // Current implementation in ItemService.ImportItemsFromExcelAsync():
+        // - Directly uses ExcelReaderFactory.CreateReader() 
+        // - Should be refactored to use IExcelReaderService.ReadItemsFromExcelAsync()
+        //
+        // Once refactored, we can add comprehensive tests like:
+        // - Valid Excel import with multiple items
+        // - Missing required columns (SerialNumber)
+        // - Duplicate serial numbers handling
+        // - Invalid image paths (should continue without image)
+        // - Error handling and reporting
+        // - Barcode generation for each item
+        // - Status set to Available for all items
+
+        #endregion
+
+
     }
 }
