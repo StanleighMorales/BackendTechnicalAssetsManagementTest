@@ -32,11 +32,22 @@ namespace BackendTechnicalAssetsManagementTest.Services
             var service = new ReservationExpiryBackgroundService(serviceProvider, _mockLogger.Object);
 
             var cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromMilliseconds(100));
 
             // Act
-            await service.StartAsync(cts.Token);
-            await Task.Delay(150);
+            var executeTask = service.StartAsync(cts.Token);
+            await Task.Delay(50); // Let service start
+            cts.Cancel(); // Cancel the service
+            
+            // Wait for service to handle cancellation (TaskCanceledException is expected)
+            try
+            {
+                await executeTask;
+            }
+            catch (TaskCanceledException)
+            {
+                // Expected - background service was canceled
+            }
+            
             await service.StopAsync(CancellationToken.None);
 
             // Assert
@@ -62,11 +73,11 @@ namespace BackendTechnicalAssetsManagementTest.Services
             var service = new ReservationExpiryBackgroundService(serviceProvider, _mockLogger.Object);
 
             var cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+            cts.CancelAfter(TimeSpan.FromMilliseconds(50));
 
             // Act
             await service.StartAsync(cts.Token);
-            await Task.Delay(150);
+            await Task.Delay(50); // Reduced for test performance
             await service.StopAsync(CancellationToken.None);
 
             // Assert
@@ -96,11 +107,11 @@ namespace BackendTechnicalAssetsManagementTest.Services
             var service = new ReservationExpiryBackgroundService(serviceProvider, _mockLogger.Object);
 
             var cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromMilliseconds(200));
+            cts.CancelAfter(TimeSpan.FromMilliseconds(50));
 
             // Act
             await service.StartAsync(cts.Token);
-            await Task.Delay(250);
+            await Task.Delay(50); // Reduced for test performance
             await service.StopAsync(CancellationToken.None);
 
             // Assert
@@ -130,7 +141,7 @@ namespace BackendTechnicalAssetsManagementTest.Services
             // Act
             await service.StartAsync(cts.Token);
             cts.Cancel();
-            await Task.Delay(200); // Give more time for the service to process cancellation
+            await Task.Delay(50); // Reduced for test performance
             await service.StopAsync(CancellationToken.None);
 
             // Assert - Verify starting was logged
@@ -159,11 +170,11 @@ namespace BackendTechnicalAssetsManagementTest.Services
             var service = new ReservationExpiryBackgroundService(serviceProvider, _mockLogger.Object);
 
             var cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+            cts.CancelAfter(TimeSpan.FromMilliseconds(50));
 
             // Act
             await service.StartAsync(cts.Token);
-            await Task.Delay(150);
+            await Task.Delay(50); // Reduced for test performance
             await service.StopAsync(CancellationToken.None);
 
             // Assert

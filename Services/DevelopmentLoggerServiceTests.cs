@@ -94,14 +94,14 @@ namespace BackendTechnicalAssetsManagementTest.Services
         {
             // Arrange
             var tokenType = "Access";
-            var expiryDuration = TimeSpan.FromSeconds(2);
-            var threshold = TimeSpan.FromSeconds(1);
+            var expiryDuration = TimeSpan.FromMilliseconds(200);
+            var threshold = TimeSpan.FromMilliseconds(50);
 
             // Act
             _developmentLoggerService.LogTokenAlmostExpired(tokenType, expiryDuration, threshold);
 
-            // Wait for the delayed task to execute
-            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            // Wait for the delayed task to execute (delay = 200ms - 50ms = 150ms, so wait 250ms to be safe)
+            await Task.Delay(TimeSpan.FromMilliseconds(250));
 
             // Assert
             _mockLogger.Verify(
@@ -213,16 +213,16 @@ namespace BackendTechnicalAssetsManagementTest.Services
         public async Task LogTokenSent_ShouldTriggerLogTokenAlmostExpired()
         {
             // Arrange
-            var expiryDuration = TimeSpan.FromSeconds(2);
+            var expiryDuration = TimeSpan.FromMilliseconds(500);
             var tokenType = "Access";
 
             // Act
             _developmentLoggerService.LogTokenSent(expiryDuration, tokenType);
 
-            // Wait for delayed warning
-            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            // Wait for delayed warning (threshold is 30s, but expiry is 500ms, so logs immediately + wait a bit)
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
 
-            // Assert - Should have logged both TOKEN SENT and TOKEN WARNING
+            // Assert - Should have logged both TOKEN SENT and TOKEN WARNING (immediately since expiry < threshold)
             _mockLogger.Verify(
                 x => x.Log(
                     LogLevel.Warning,
