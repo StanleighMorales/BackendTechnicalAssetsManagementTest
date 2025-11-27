@@ -115,7 +115,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Returns(userDto);
 
             // Act
-            var result = await _authService.Register(registerDto);
+            var currentUserId = Guid.NewGuid(); // Admin user ID
+            var result = await _authService.Register(registerDto, currentUserId);
 
             // Assert
             Assert.NotNull(result);
@@ -130,13 +131,14 @@ namespace BackendTechnicalAssetsManagementTest.Services
         {
             // Arrange - Using Mock Data
             var registerDto = AuthMockData.GetInvalidPasswordRegisterDto();
+            var currentUserId = Guid.NewGuid();
 
             _mockUserValidationService
                 .Setup(x => x.ValidateUniqueUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns(Task.FromResult(0));
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto));
+            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto, currentUserId));
         }
 
         [Theory]
@@ -150,13 +152,14 @@ namespace BackendTechnicalAssetsManagementTest.Services
             // Arrange - Using Mock Data with custom password
             var registerDto = AuthMockData.GetInvalidPasswordRegisterDto();
             registerDto.Password = invalidPassword;
+            var currentUserId = Guid.NewGuid();
 
             _mockUserValidationService
                 .Setup(x => x.ValidateUniqueUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns(Task.FromResult(0));
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto));
+            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto, currentUserId));
         }
 
         #endregion
@@ -973,13 +976,14 @@ namespace BackendTechnicalAssetsManagementTest.Services
         {
             // Arrange
             var registerDto = AuthMockData.GetValidStudentRegisterDto();
+            var currentUserId = Guid.NewGuid();
 
             _mockUserValidationService
                 .Setup(x => x.ValidateUniqueUserAsync(registerDto.Username, registerDto.Email, registerDto.PhoneNumber))
                 .ThrowsAsync(new ArgumentException("Username already exists"));
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto));
+            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto, currentUserId));
         }
 
         [Fact]
@@ -987,13 +991,14 @@ namespace BackendTechnicalAssetsManagementTest.Services
         {
             // Arrange
             var registerDto = AuthMockData.GetValidStudentRegisterDto();
+            var currentUserId = Guid.NewGuid();
 
             _mockUserValidationService
                 .Setup(x => x.ValidateUniqueUserAsync(registerDto.Username, registerDto.Email, registerDto.PhoneNumber))
                 .ThrowsAsync(new ArgumentException("Email already exists"));
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto));
+            await Assert.ThrowsAsync<ArgumentException>(() => _authService.Register(registerDto, currentUserId));
         }
 
         [Fact]
@@ -1039,7 +1044,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
                 .Returns(userDto);
 
             // Act
-            var result = await _authService.Register(registerDto);
+            var currentUserId = Guid.NewGuid();
+            var result = await _authService.Register(registerDto, currentUserId);
 
             // Assert
             Assert.NotNull(result);

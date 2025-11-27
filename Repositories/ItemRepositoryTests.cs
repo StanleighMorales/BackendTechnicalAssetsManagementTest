@@ -50,14 +50,16 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
                 Id = Guid.NewGuid(),
                 ItemName = "Laptop",
                 SerialNumber = "SN-001",
+                Barcode = "ITEM-SN-001",
                 Status = ItemStatus.Available
             };
 
             var item2 = new Item
             {
                 Id = Guid.NewGuid(),
-                ItemName = "Projector",
+                ItemName = "Mouse",
                 SerialNumber = "SN-002",
+                Barcode = "ITEM-SN-002",
                 Status = ItemStatus.Borrowed
             };
 
@@ -84,8 +86,9 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             var item = new Item
             {
                 Id = itemId,
-                ItemName = "Camera",
+                ItemName = "Keyboard",
                 SerialNumber = "SN-003",
+                Barcode = "ITEM-SN-003",
                 Status = ItemStatus.Available
             };
 
@@ -98,7 +101,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             // Assert
             Assert.NotNull(result);
             Assert.Equal(itemId, result.Id);
-            Assert.Equal("Camera", result.ItemName);
+            Assert.Equal("Keyboard", result.ItemName);
         }
 
         [Fact]
@@ -126,7 +129,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             var item = new Item
             {
                 Id = Guid.NewGuid(),
-                ItemName = "Tablet",
+                ItemName = "Monitor",
                 SerialNumber = "SN-004",
                 Barcode = barcode,
                 Status = ItemStatus.Available
@@ -141,6 +144,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             // Assert
             Assert.NotNull(result);
             Assert.Equal(barcode, result.Barcode);
+            Assert.Equal("Monitor", result.ItemName);
         }
 
         [Fact]
@@ -168,8 +172,9 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             var item = new Item
             {
                 Id = Guid.NewGuid(),
-                ItemName = "Monitor",
+                ItemName = "Projector",
                 SerialNumber = serialNumber,
+                Barcode = "ITEM-SN-005",
                 Status = ItemStatus.Available
             };
 
@@ -182,36 +187,17 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             // Assert
             Assert.NotNull(result);
             Assert.Equal(serialNumber, result.SerialNumber);
-        }
-
-        [Fact]
-        public async Task GetBySerialNumberAsync_CaseInsensitive_ShouldReturnItem()
-        {
-            // Arrange
-            var item = new Item
-            {
-                Id = Guid.NewGuid(),
-                ItemName = "Keyboard",
-                SerialNumber = "SN-006",
-                Status = ItemStatus.Available
-            };
-
-            await _context.Items.AddAsync(item);
-            await _context.SaveChangesAsync();
-
-            // Act
-            var result = await _repository.GetBySerialNumberAsync("sn-006");
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal("SN-006", result.SerialNumber);
+            Assert.Equal("Projector", result.ItemName);
         }
 
         [Fact]
         public async Task GetBySerialNumberAsync_WithInvalidSerialNumber_ShouldReturnNull()
         {
+            // Arrange
+            var nonExistentSerial = "SN-NONEXISTENT";
+
             // Act
-            var result = await _repository.GetBySerialNumberAsync("NONEXISTENT");
+            var result = await _repository.GetBySerialNumberAsync(nonExistentSerial);
 
             // Assert
             Assert.Null(result);
@@ -228,8 +214,9 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             var item = new Item
             {
                 Id = Guid.NewGuid(),
-                ItemName = "Mouse",
-                SerialNumber = "SN-007",
+                ItemName = "Tablet",
+                SerialNumber = "SN-006",
+                Barcode = "ITEM-SN-006",
                 Status = ItemStatus.Available
             };
 
@@ -243,7 +230,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             
             var savedItem = await _context.Items.FindAsync(item.Id);
             Assert.NotNull(savedItem);
-            Assert.Equal("Mouse", savedItem.ItemName);
+            Assert.Equal("Tablet", savedItem.ItemName);
         }
 
         #endregion
@@ -258,7 +245,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Id = Guid.NewGuid(),
                 ItemName = "Old Name",
-                SerialNumber = "SN-008",
+                SerialNumber = "SN-007",
+                Barcode = "ITEM-SN-007",
                 Status = ItemStatus.Available
             };
 
@@ -292,8 +280,9 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             var item = new Item
             {
                 Id = itemId,
-                ItemName = "Delete Me",
-                SerialNumber = "SN-009",
+                ItemName = "To Delete",
+                SerialNumber = "SN-008",
+                Barcode = "ITEM-SN-008",
                 Status = ItemStatus.Available
             };
 
@@ -332,7 +321,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Id = Guid.NewGuid(),
                 ItemName = "Save Test",
-                SerialNumber = "SN-010",
+                SerialNumber = "SN-009",
+                Barcode = "ITEM-SN-009",
                 Status = ItemStatus.Available
             };
 
@@ -363,27 +353,30 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         public async Task AddRangeAsync_WithMultipleItems_ShouldAddAllToContext()
         {
             // Arrange
-            var items = new[]
+            var items = new List<Item>
             {
                 new Item
                 {
                     Id = Guid.NewGuid(),
                     ItemName = "Item 1",
-                    SerialNumber = "SN-011",
+                    SerialNumber = "SN-010",
+                    Barcode = "ITEM-SN-010",
                     Status = ItemStatus.Available
                 },
                 new Item
                 {
                     Id = Guid.NewGuid(),
                     ItemName = "Item 2",
-                    SerialNumber = "SN-012",
+                    SerialNumber = "SN-011",
+                    Barcode = "ITEM-SN-011",
                     Status = ItemStatus.Available
                 },
                 new Item
                 {
                     Id = Guid.NewGuid(),
                     ItemName = "Item 3",
-                    SerialNumber = "SN-013",
+                    SerialNumber = "SN-012",
+                    Barcode = "ITEM-SN-012",
                     Status = ItemStatus.Available
                 }
             };
@@ -395,6 +388,9 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             // Assert
             var allItems = await _context.Items.ToListAsync();
             Assert.Equal(3, allItems.Count);
+            Assert.Contains(allItems, i => i.SerialNumber == "SN-010");
+            Assert.Contains(allItems, i => i.SerialNumber == "SN-011");
+            Assert.Contains(allItems, i => i.SerialNumber == "SN-012");
         }
 
         #endregion

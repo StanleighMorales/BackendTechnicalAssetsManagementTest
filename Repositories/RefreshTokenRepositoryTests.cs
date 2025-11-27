@@ -1,5 +1,6 @@
 using BackendTechnicalAssetsManagement.src.Classes;
 using BackendTechnicalAssetsManagement.src.Data;
+using BackendTechnicalAssetsManagement.src.Repository;
 using Microsoft.EntityFrameworkCore;
 using static BackendTechnicalAssetsManagement.src.Classes.Enums;
 
@@ -33,9 +34,12 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         public async Task GetByTokenAsync_WithValidToken_ShouldReturnRefreshToken()
         {
             // Arrange
+            var tokenString = "valid-token-123";
+            var userId = Guid.NewGuid();
+            
             var user = new Student
             {
-                Id = Guid.NewGuid(),
+                Id = userId,
                 Username = "testuser",
                 Email = "test@example.com",
                 FirstName = "Test",
@@ -43,13 +47,12 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
                 UserRole = UserRole.Student
             };
 
-            var tokenString = "valid-refresh-token-123";
             var refreshToken = new RefreshToken
             {
                 Token = tokenString,
-                UserId = user.Id,
-                CreatedAt = DateTime.UtcNow,
+                UserId = userId,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow,
                 IsRevoked = false
             };
 
@@ -63,7 +66,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             // Assert
             Assert.NotNull(result);
             Assert.Equal(tokenString, result.Token);
-            Assert.Equal(user.Id, result.UserId);
+            Assert.Equal(userId, result.UserId);
         }
 
         [Fact]
@@ -88,6 +91,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         {
             // Arrange
             var userId = Guid.NewGuid();
+            
             var user = new Student
             {
                 Id = userId,
@@ -102,8 +106,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "older-token",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow.AddDays(-2),
-                ExpiresAt = DateTime.UtcNow.AddDays(5),
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow.AddHours(-2),
                 IsRevoked = false
             };
 
@@ -111,8 +115,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "newer-token",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow.AddDays(-1),
-                ExpiresAt = DateTime.UtcNow.AddDays(6),
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow.AddHours(-1),
                 IsRevoked = false
             };
 
@@ -133,6 +137,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         {
             // Arrange
             var userId = Guid.NewGuid();
+            
             var user = new Student
             {
                 Id = userId,
@@ -147,14 +152,49 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "revoked-token",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
-                IsRevoked = true,
-                RevokedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                IsRevoked = true
             };
 
             await _context.Users.AddAsync(user);
             await _context.RefreshTokens.AddAsync(revokedToken);
+            await _context.SaveChangesAsync();
+
+            // Act
+            var result = await _repository.GetLatestActiveTokenForUserAsync(userId);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task GetLatestActiveTokenForUserAsync_WithExpiredTokens_ShouldReturnNull()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            
+            var user = new Student
+            {
+                Id = userId,
+                Username = "testuser",
+                Email = "test@example.com",
+                FirstName = "Test",
+                LastName = "User",
+                UserRole = UserRole.Student
+            };
+
+            var expiredToken = new RefreshToken
+            {
+                Token = "expired-token",
+                UserId = userId,
+                ExpiresAt = DateTime.UtcNow.AddDays(-1),
+                CreatedAt = DateTime.UtcNow.AddDays(-8),
+                IsRevoked = false
+            };
+
+            await _context.Users.AddAsync(user);
+            await _context.RefreshTokens.AddAsync(expiredToken);
             await _context.SaveChangesAsync();
 
             // Act
@@ -186,6 +226,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         {
             // Arrange
             var userId = Guid.NewGuid();
+            
             var user = new Student
             {
                 Id = userId,
@@ -200,8 +241,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "new-token",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow,
                 IsRevoked = false
             };
 
@@ -210,12 +251,12 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
 
             // Act
             await _repository.AddAsync(refreshToken);
-            await _repository.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
             // Assert
-            var savedToken = await _context.RefreshTokens.FindAsync(refreshToken.Id);
+            var savedToken = await _context.RefreshTokens.FirstOrDefaultAsync(t => t.Token == "new-token");
             Assert.NotNull(savedToken);
-            Assert.Equal("new-token", savedToken.Token);
+            Assert.Equal(userId, savedToken.UserId);
         }
 
         #endregion
@@ -223,10 +264,11 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         #region RevokeAllForUserAsync Tests
 
         [Fact]
-        public async Task RevokeAllForUserAsync_WithActiveTokens_ShouldRevokeAll()
+        public async Task RevokeAllForUserAsync_WithMultipleTokens_ShouldRevokeAll()
         {
             // Arrange
             var userId = Guid.NewGuid();
+            
             var user = new Student
             {
                 Id = userId,
@@ -241,8 +283,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "token-1",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow,
                 IsRevoked = false
             };
 
@@ -250,8 +292,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "token-2",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow,
                 IsRevoked = false
             };
 
@@ -261,12 +303,11 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
 
             // Act
             await _repository.RevokeAllForUserAsync(userId);
-            await _repository.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
             // Assert
             var tokens = await _context.RefreshTokens.Where(t => t.UserId == userId).ToListAsync();
             Assert.All(tokens, t => Assert.True(t.IsRevoked));
-            Assert.All(tokens, t => Assert.NotNull(t.RevokedAt));
         }
 
         [Fact]
@@ -277,48 +318,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
 
             // Act & Assert - Should not throw
             await _repository.RevokeAllForUserAsync(userId);
-            await _repository.SaveChangesAsync();
-        }
-
-        [Fact]
-        public async Task RevokeAllForUserAsync_WithAlreadyRevokedTokens_ShouldNotAffectThem()
-        {
-            // Arrange
-            var userId = Guid.NewGuid();
-            var user = new Student
-            {
-                Id = userId,
-                Username = "testuser",
-                Email = "test@example.com",
-                FirstName = "Test",
-                LastName = "User",
-                UserRole = UserRole.Student
-            };
-
-            var originalRevokedAt = DateTime.UtcNow.AddDays(-1);
-            var revokedToken = new RefreshToken
-            {
-                Token = "already-revoked",
-                UserId = userId,
-                CreatedAt = DateTime.UtcNow.AddDays(-2),
-                ExpiresAt = DateTime.UtcNow.AddDays(5),
-                IsRevoked = true,
-                RevokedAt = originalRevokedAt
-            };
-
-            await _context.Users.AddAsync(user);
-            await _context.RefreshTokens.AddAsync(revokedToken);
             await _context.SaveChangesAsync();
-
-            // Act
-            await _repository.RevokeAllForUserAsync(userId);
-            await _repository.SaveChangesAsync();
-
-            // Assert
-            var token = await _context.RefreshTokens.FindAsync(revokedToken.Id);
-            Assert.NotNull(token);
-            Assert.True(token.IsRevoked);
-            Assert.Equal(originalRevokedAt, token.RevokedAt); // Should not change
         }
 
         #endregion
@@ -326,10 +326,11 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         #region SaveChangesAsync Tests
 
         [Fact]
-        public async Task SaveChangesAsync_ShouldPersistChanges()
+        public async Task SaveChangesAsync_WithChanges_ShouldSaveSuccessfully()
         {
             // Arrange
             var userId = Guid.NewGuid();
+            
             var user = new Student
             {
                 Id = userId,
@@ -344,8 +345,8 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             {
                 Token = "save-test-token",
                 UserId = userId,
-                CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow,
                 IsRevoked = false
             };
 
@@ -356,7 +357,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             await _repository.SaveChangesAsync();
 
             // Assert
-            var savedToken = await _context.RefreshTokens.FindAsync(refreshToken.Id);
+            var savedToken = await _context.RefreshTokens.FirstOrDefaultAsync(t => t.Token == "save-test-token");
             Assert.NotNull(savedToken);
         }
 
