@@ -383,6 +383,71 @@ namespace BackendTechnicalAssetsManagementTest.Services
             _mockUserRepository.Verify(x => x.UpdateAsync(It.IsAny<User>()), Times.Never);
         }
 
+        [Fact]
+        public async Task UpdateStudentProfileAsync_WithInvalidImageFormat_ShouldThrowArgumentException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var existingStudent = UserMockData.GetMockStudent(userId);
+            var updateDto = UserMockData.GetValidUpdateStudentProfileDto();
+
+            // Create a mock IFormFile with invalid extension (.txt)
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.FileName).Returns("test.txt");
+            mockFile.Setup(f => f.Length).Returns(1024); // 1KB
+            mockFile.Setup(f => f.ContentType).Returns("text/plain");
+
+            updateDto.ProfilePicture = mockFile.Object;
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(existingStudent);
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                () => _userService.UpdateStudentProfileAsync(userId, updateDto));
+            
+            Assert.Contains("Invalid image file type", exception.Message);
+            Assert.Contains(".jpg", exception.Message);
+            Assert.Contains(".png", exception.Message);
+            
+            // Verify that UpdateAsync was never called due to validation failure
+            _mockUserRepository.Verify(x => x.UpdateAsync(It.IsAny<User>()), Times.Never);
+            _mockUserRepository.Verify(x => x.SaveChangesAsync(), Times.Never);
+        }
+
+        [Fact]
+        public async Task UpdateStudentProfileAsync_WithOversizedImage_ShouldThrowArgumentException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var existingStudent = UserMockData.GetMockStudent(userId);
+            var updateDto = UserMockData.GetValidUpdateStudentProfileDto();
+
+            // Create a mock IFormFile with size exceeding 5MB
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.FileName).Returns("large-image.jpg");
+            mockFile.Setup(f => f.Length).Returns(6 * 1024 * 1024); // 6MB (exceeds 5MB limit)
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+
+            updateDto.FrontStudentIdPicture = mockFile.Object;
+
+            _mockUserRepository
+                .Setup(x => x.GetByIdAsync(userId))
+                .ReturnsAsync(existingStudent);
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                () => _userService.UpdateStudentProfileAsync(userId, updateDto));
+            
+            Assert.Contains("Image file size cannot exceed", exception.Message);
+            Assert.Contains("5MB", exception.Message);
+            
+            // Verify that UpdateAsync was never called due to validation failure
+            _mockUserRepository.Verify(x => x.UpdateAsync(It.IsAny<User>()), Times.Never);
+            _mockUserRepository.Verify(x => x.SaveChangesAsync(), Times.Never);
+        }
+
         #endregion
 
         #region UpdateStaffOrAdminProfileAsync Tests

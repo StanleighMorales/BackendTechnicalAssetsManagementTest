@@ -37,6 +37,8 @@ namespace BackendTechnicalAssetsManagementTest.Services
         public void Dispose()
         {
             _mockDbContext?.Dispose();
+            // Reset the static flag to prevent affecting other tests or production code
+            BarcodeGeneratorService.SkipImageGeneration = false;
         }
 
         #region GenerateItemBarcode Tests
