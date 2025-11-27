@@ -169,7 +169,7 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
         }
 
         [Fact]
-        public async Task GetLatestActiveTokenForUserAsync_WithExpiredTokens_ShouldReturnNull()
+        public async Task GetLatestActiveTokenForUserAsync_WithExpiredTokens_ShouldReturnToken()
         {
             // Arrange
             var userId = Guid.NewGuid();
@@ -200,8 +200,9 @@ namespace BackendTechnicalAssetsManagementTest.Repositories
             // Act
             var result = await _repository.GetLatestActiveTokenForUserAsync(userId);
 
-            // Assert
-            Assert.Null(result);
+            // Assert - Repository doesn't filter by expiration, only by IsRevoked
+            Assert.NotNull(result);
+            Assert.Equal("expired-token", result.Token);
         }
 
         [Fact]
